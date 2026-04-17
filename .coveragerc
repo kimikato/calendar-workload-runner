@@ -1,0 +1,22 @@
+# .coveragerc
+
+[run]
+# 測定対象
+source = calendar_workload_runner
+branch = True
+parallel = False
+
+# 除外対象（必要に応じて追加）
+omit =
+    */tests/*
+    */__init__.py
+
+[report]
+show_missing = True
+precision = 1
+
+# カバレッジに含めたくないノイズ行
+exclude_lines =
+    pragma: no cover
+    if TYPE_CHECKING:
+    if __name__ == "__main__":

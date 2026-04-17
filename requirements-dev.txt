@@ -1,0 +1,9 @@
+black
+flake8
+mypy
+pytest
+pytest-cov
+coverage
+ruff
+build
+types-python-dateutil

@@ -1,0 +1,54 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+.python-version
+.venv/
+venv/
+env/
+ENV/
+
+# Build / packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+pip-wheel-metadata/
+
+# Test / cache
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Local environment files
+.env
+.env.local
+
+# Google OAuth secrets/tokens
+credentials.json
+token.json
+
+# SQLite / runtime state / logs
+*.db
+*.sqlite
+*.sqlite3
+logs/
+state/
+
+# Application local data
+mining.db
+
+# OS / misc
+Thumbs.db

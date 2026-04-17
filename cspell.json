@@ -1,0 +1,32 @@
+{
+  "version": "0.2",
+  "language": "en",
+  "words": [
+    "mypy",
+    "pytest",
+    "pyproject",
+    "dateutil",
+    "googleapiclient",
+    "httplib",
+    "setuptools",
+    "xmrig",
+    "htmlcov",
+    "pycache",
+    "capsys",
+    "maxfail",
+    "pythonpath",
+    "timeit",
+    "Kiminori",
+    "KATO",
+    "venv",
+    "minversion",
+    "testpaths",
+    "addopts"
+  ],
+  "ignorePaths": [
+    ".venv",
+    "__pycache__",
+    "build",
+    "dist"
+  ]
+}
