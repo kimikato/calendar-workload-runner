@@ -8,8 +8,8 @@ from _pytest.capture import CaptureFixture
 from _pytest.monkeypatch import MonkeyPatch
 
 from calendar_workload_runner import cli
-from calendar_workload_runner.config import Settings
 from calendar_workload_runner.models import RunSchedule
+from calendar_workload_runner.settings import Settings
 
 
 def test_cli_main_prints_name(

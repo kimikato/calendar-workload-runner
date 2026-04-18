@@ -9,8 +9,8 @@ import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 
-from calendar_workload_runner.config import Settings
 from calendar_workload_runner.db import initialize_db, is_run_allowed_now
+from calendar_workload_runner.settings import Settings
 
 
 def get_now_iso() -> str:

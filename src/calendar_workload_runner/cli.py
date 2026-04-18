@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from pathlib import Path
 
 from calendar_workload_runner.config import load_settings
 from calendar_workload_runner.control_runner import control_workload
@@ -14,6 +15,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="calendar_workload_runner",
         description="Calendar-based workload runner",
+    )
+    parser.add_argument(
+        "-c",
+        "--config",
+        type=Path,
+        help="Path to settings JSON file",
     )
 
     subparsers = parser.add_subparsers(dest="command")

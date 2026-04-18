@@ -4,13 +4,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from calendar_workload_runner.config import Settings
 from calendar_workload_runner.control_runner import (
     parse_command,
     read_pid,
     remove_pid,
     write_pid,
 )
+from calendar_workload_runner.settings import Settings
 
 
 def make_settings(tmp_path: Path) -> Settings:
