@@ -11,7 +11,7 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 
-from calendar_workload_runner.db import upsert_run_schedules
+from calendar_workload_runner.db import RunScheduleRepository
 from calendar_workload_runner.models import RunSchedule
 from calendar_workload_runner.settings import Settings
 
@@ -187,7 +187,10 @@ def sync_events_to_db(
     items: list[CalendarEvent],
 ) -> list[RunSchedule]:
     schedules = normalize_events(items)
-    upsert_run_schedules(db_path=db_path, schedules=schedules)
+
+    repository = RunScheduleRepository(db_path)
+    repository.upsert_run_schedules(schedules)
+
     return schedules
 
 

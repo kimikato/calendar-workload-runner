@@ -9,7 +9,7 @@ import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 
-from calendar_workload_runner.db import initialize_db, is_run_allowed_now
+from calendar_workload_runner.db import RunScheduleRepository
 from calendar_workload_runner.settings import Settings
 
 
@@ -36,7 +36,6 @@ def read_pid(pid_path: Path) -> int | None:
 
 
 def write_pid(pid_path: Path, pid: int) -> None:
-    pid_path.parent.mkdir(parents=True, exist_ok=True)
     pid_path.write_text(f"{pid}\n", encoding="utf-8")
 
 
@@ -61,8 +60,6 @@ def start_workload(settings: Settings) -> int:
     if not command:
         raise ValueError("WORKLOAD_RUNNER_COMMAND is empty")
 
-    settings.logs_dir.mkdir(parents=True, exist_ok=True)
-
     with settings.workload_log_path.open("a", encoding="utf-8") as log_file:
         process = subprocess.Popen(
             command,
@@ -81,18 +78,17 @@ def stop_workload(pid: int, pid_path: Path) -> None:
 
 
 def write_control_log(settings: Settings, message: str) -> None:
-    settings.logs_dir.mkdir(parents=True, exist_ok=True)
-
     timestamp = get_now_iso()
     with settings.control_log_path.open("a", encoding="utf-8") as log_file:
         log_file.write(f"[{timestamp}] {message}\n")
 
 
 def control_workload(settings: Settings) -> str:
-    initialize_db(settings.db_path)
+    repository = RunScheduleRepository(settings.db_path)
+    repository.initialize()
 
     now_iso = get_now_iso()
-    allowed = is_run_allowed_now(settings.db_path, now_iso)
+    allowed = repository.is_run_allowed_now(now_iso)
 
     pid = read_pid(settings.workload_pid_path)
     running = pid is not None and is_process_running(pid)
