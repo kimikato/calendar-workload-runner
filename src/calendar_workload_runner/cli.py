@@ -6,7 +6,7 @@ import argparse
 from pathlib import Path
 
 from calendar_workload_runner.config import load_settings
-from calendar_workload_runner.control_runner import control_workload
+from calendar_workload_runner.control_runner import WorkloadController
 from calendar_workload_runner.sync_calendar import CalendarSyncService
 
 
@@ -49,7 +49,8 @@ def main() -> None:
 
     if args.command == "control-runner":
         settings = load_settings()
-        message = control_workload(settings)
+        controller = WorkloadController(settings)
+        message = controller.control()
         print(message)
         return
 

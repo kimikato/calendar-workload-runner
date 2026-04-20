@@ -116,16 +116,21 @@ def test_cli_control_runner(
             sync_log_path=Path("logs/sync_calendar.log"),
         )
 
-    def fake_control_workload(settings: Settings) -> str:
-        called["control_workload"] = settings
-        return "started workload (pid=12345)"
+    class FakeWorkloadController:
+        def __init__(self, settings: Settings) -> None:
+            called["controller_settings"] = settings
+
+        def control(self) -> str:
+            called["control"] = True
+            return "started workload (pid=12345)"
 
     monkeypatch.setattr(cli, "load_settings", fake_load_settings)
-    monkeypatch.setattr(cli, "control_workload", fake_control_workload)
+    monkeypatch.setattr(cli, "WorkloadController", FakeWorkloadController)
 
     cli.main()
     captured = capsys.readouterr()
 
     assert called["load_settings"] is True
-    assert "control_workload" in called
+    assert "controller_settings" in called
+    assert called["control"] is True
     assert captured.out.strip() == "started workload (pid=12345)"
