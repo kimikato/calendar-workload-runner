@@ -36,6 +36,7 @@ def read_pid(pid_path: Path) -> int | None:
 
 
 def write_pid(pid_path: Path, pid: int) -> None:
+    pid_path.parent.mkdir(parents=True, exist_ok=True)
     pid_path.write_text(f"{pid}\n", encoding="utf-8")
 
 
@@ -60,6 +61,8 @@ def start_workload(settings: Settings) -> int:
     if not command:
         raise ValueError("WORKLOAD_RUNNER_COMMAND is empty")
 
+    settings.logs_dir.mkdir(parents=True, exist_ok=True)
+
     with settings.workload_log_path.open("a", encoding="utf-8") as log_file:
         process = subprocess.Popen(
             command,
@@ -78,6 +81,8 @@ def stop_workload(pid: int, pid_path: Path) -> None:
 
 
 def write_control_log(settings: Settings, message: str) -> None:
+    settings.logs_dir.mkdir(parents=True, exist_ok=True)
+
     timestamp = get_now_iso()
     with settings.control_log_path.open("a", encoding="utf-8") as log_file:
         log_file.write(f"[{timestamp}] {message}\n")

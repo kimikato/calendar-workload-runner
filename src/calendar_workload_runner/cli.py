@@ -7,8 +7,7 @@ from pathlib import Path
 
 from calendar_workload_runner.config import load_settings
 from calendar_workload_runner.control_runner import control_workload
-from calendar_workload_runner.db import initialize_db
-from calendar_workload_runner.sync_calendar import sync_google_calendar_to_db
+from calendar_workload_runner.sync_calendar import CalendarSyncService
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -29,7 +28,6 @@ def build_parser() -> argparse.ArgumentParser:
         "sync-calendar",
         help="Sync Google Calendar events into SQLite",
     )
-
     subparsers.add_parser(
         "control-runner",
         help="Start or stop workload based on current schedule",
@@ -44,8 +42,8 @@ def main() -> None:
 
     if args.command == "sync-calendar":
         settings = load_settings()
-        initialize_db(settings.db_path)
-        schedules = sync_google_calendar_to_db(settings)
+        service = CalendarSyncService(settings)
+        schedules = service.sync()
         print(f"synced {len(schedules)} schedule(s)")
         return
 

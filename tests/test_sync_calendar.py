@@ -2,17 +2,21 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from pathlib import Path
 
-from calendar_workload_runner.db import initialize_db, list_run_schedules
+from _pytest.monkeypatch import MonkeyPatch
+
+from calendar_workload_runner.db import RunScheduleRepository
+from calendar_workload_runner.settings import Settings
 from calendar_workload_runner.sync_calendar import (
     CalendarEvent,
     CalendarResponse,
+    CalendarSyncService,
     extract_items,
     is_timed_event,
     normalize_event,
     normalize_events,
-    sync_events_to_db,
 )
 
 
@@ -148,36 +152,6 @@ def test_normalize_events_filters_invalid_items() -> None:
     assert schedules[0].event_id == "event-1"
 
 
-def test_sync_events_to_db(tmp_path: Path) -> None:
-    db_path = tmp_path / "test.db"
-    initialize_db(db_path)
-
-    items: list[CalendarEvent] = [
-        {
-            "id": "event-1",
-            "summary": "Family out",
-            "status": "confirmed",
-            "updated": "2026-04-10T09:00:00+09:00",
-            "start": {
-                "dateTime": "2026-04-11T11:00:00+09:00",
-                "timeZone": "Asia/Tokyo",
-            },
-            "end": {
-                "dateTime": "2026-04-11T14:00:00+09:00",
-                "timeZone": "Asia/Tokyo",
-            },
-        }
-    ]
-
-    schedules = sync_events_to_db(db_path, items)
-
-    assert len(schedules) == 1
-
-    saved = list_run_schedules(db_path)
-    assert len(saved) == 1
-    assert saved[0].event_id == "event-1"
-
-
 def test_extract_items_returns_items_from_response() -> None:
     response: CalendarResponse = {
         "items": [
@@ -210,3 +184,62 @@ def test_extract_items_returns_empty_list_when_missing() -> None:
     items = extract_items(response)
 
     assert items == []
+
+
+def test_calendar_sync_service_sync(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+) -> None:
+    settings = Settings(
+        base_dir=tmp_path,
+        db_path=tmp_path / "runner.db",
+        credentials_path=tmp_path / "credentials.json",
+        token_path=tmp_path / "token.json",
+        logs_dir=tmp_path / "logs",
+        state_dir=tmp_path / "state",
+        calendar_id="primary",
+        workload_command="echo test",
+        workload_pid_path=tmp_path / "state" / "workload.pid",
+        workload_log_path=tmp_path / "logs" / "workload.log",
+        control_log_path=tmp_path / "logs" / "control.log",
+        sync_log_path=tmp_path / "logs" / "sync_calendar.log",
+    )
+    repository = RunScheduleRepository(settings.db_path)
+    service = CalendarSyncService(settings, repository=repository)
+
+    def fake_fetch_calendar_response(
+        time_min: datetime,
+        time_max: datetime,
+    ) -> CalendarResponse:
+        return {
+            "items": [
+                {
+                    "id": "event-1",
+                    "summary": "Family out",
+                    "status": "confirmed",
+                    "updated": "2026-04-10T09:00:00+09:00",
+                    "start": {
+                        "dateTime": "2026-04-11T11:00:00+09:00",
+                        "timeZone": "Asia/Tokyo",
+                    },
+                    "end": {
+                        "dateTime": "2026-04-11T14:00:00+09:00",
+                        "timeZone": "Asia/Tokyo",
+                    },
+                }
+            ]
+        }
+
+    monkeypatch.setattr(
+        service,
+        "fetch_calendar_response",
+        fake_fetch_calendar_response,
+    )
+
+    schedules = service.sync()
+
+    assert len(schedules) == 1
+
+    saved = repository.list_run_schedules()
+    assert len(saved) == 1
+    assert saved[0].event_id == "event-1"

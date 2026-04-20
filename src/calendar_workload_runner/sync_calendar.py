@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
 from typing import Any, TypedDict, cast
 
 from google.auth.transport.requests import Request
@@ -41,79 +40,102 @@ class CalendarResponse(TypedDict, total=False):
     updated: str
 
 
-def get_credentials(settings: Settings) -> Credentials:
-    creds: Credentials | None = None
+class CalendarSyncService:
 
-    if settings.token_path.exists():
-        creds = Credentials.from_authorized_user_file(  # type: ignore[no-untyped-call]
-            str(settings.token_path),
-            SCOPES,
-        )
+    def __init__(
+        self,
+        settings: Settings,
+        repository: RunScheduleRepository | None = None,
+    ) -> None:
+        self.settings = settings
+        self.repository = repository or RunScheduleRepository(settings.db_path)
 
-    if creds is None or not creds.valid:
-        if creds is not None:
-            creds_any = cast(Any, creds)
-            if creds.expired and creds_any.refresh_token:
-                creds_any.refresh(Request())
+    def get_credentials(self) -> Credentials:
+        creds: Credentials | None = None
+
+        if self.settings.token_path.exists():
+            creds = Credentials.from_authorized_user_file(  # type: ignore[no-untyped-call]
+                str(self.settings.token_path),
+                SCOPES,
+            )
+
+        if creds is None or not creds.valid:
+            if creds is not None:
+                creds_any = cast(Any, creds)
+                if creds.expired and creds_any.refresh_token:
+                    creds_any.refresh(Request())
+                else:
+                    flow = InstalledAppFlow.from_client_secrets_file(
+                        str(self.settings.credentials_path),
+                        SCOPES,
+                    )
+                    new_creds = flow.run_local_server(port=0)
+                    creds = cast(Credentials, new_creds)
             else:
                 flow = InstalledAppFlow.from_client_secrets_file(
-                    str(settings.credentials_path),
+                    str(self.settings.credentials_path),
                     SCOPES,
                 )
                 new_creds = flow.run_local_server(port=0)
                 creds = cast(Credentials, new_creds)
-        else:
-            flow = InstalledAppFlow.from_client_secrets_file(
-                str(settings.credentials_path),
-                SCOPES,
+
+            assert creds is not None
+            self.settings.token_path.write_text(
+                creds.to_json(),  # type: ignore[no-untyped-call]
+                encoding="utf-8",
             )
-            new_creds = flow.run_local_server(port=0)
-            creds = cast(Credentials, new_creds)
 
         assert creds is not None
-        settings.token_path.write_text(
-            creds.to_json(), encoding="utf-8"  # type: ignore[no-untyped-call]
+        return creds
+
+    def fetch_calendar_response(
+        self,
+        time_min: datetime,
+        time_max: datetime,
+    ) -> CalendarResponse:
+        creds = self.get_credentials()
+
+        service: Any = build(
+            "calendar",
+            "v3",
+            credentials=creds,
         )
 
-    assert creds is not None
-    return creds
-
-
-def fetch_calendar_response(
-    settings: Settings,
-    time_min: datetime,
-    time_max: datetime,
-) -> CalendarResponse:
-    creds = get_credentials(settings)
-
-    service: Any = build(
-        "calendar",
-        "v3",
-        credentials=creds,
-    )
-
-    response: Any = (
-        service.events()
-        .list(
-            calendarId=settings.calendar_id,
-            timeMin=time_min.isoformat(),
-            timeMax=time_max.isoformat(),
-            singleEvents=True,
-            orderBy="startTime",
+        response: Any = (
+            service.events()
+            .list(
+                calendarId=self.settings.calendar_id,
+                timeMin=time_min.isoformat(),
+                timeMax=time_max.isoformat(),
+                singleEvents=True,
+                orderBy="startTime",
+            )
+            .execute()
         )
-        .execute()
-    )
 
-    return cast(CalendarResponse, response)
+        return cast(CalendarResponse, response)
 
+    def sync(
+        self,
+        *,
+        lookback_days: int = 1,
+        lookahead_days: int = 3,
+    ) -> list[RunSchedule]:
+        self.repository.initialize()
 
-def extract_items(response: CalendarResponse) -> list[CalendarEvent]:
-    items = response.get("items", [])
+        now = datetime.now(timezone.utc)
+        time_min = now - timedelta(days=lookback_days)
+        time_max = now + timedelta(days=lookahead_days)
 
-    if not isinstance(items, list):
-        return []
+        response = self.fetch_calendar_response(
+            time_min=time_min,
+            time_max=time_max,
+        )
+        items = extract_items(response)
+        schedules = normalize_events(items)
+        self.repository.upsert_run_schedules(schedules)
 
-    return items
+        return schedules
 
 
 def is_timed_event(item: CalendarEvent) -> bool:
@@ -126,7 +148,22 @@ def is_timed_event(item: CalendarEvent) -> bool:
     start_datetime = start.get("dateTime")
     end_datetime = end.get("dateTime")
 
-    return isinstance(start_datetime, str) and isinstance(end_datetime, str)
+    return isinstance(
+        start_datetime,
+        str,
+    ) and isinstance(
+        end_datetime,
+        str,
+    )
+
+
+def extract_items(response: CalendarResponse) -> list[CalendarEvent]:
+    items = response.get("items", [])
+
+    if not isinstance(items, list):
+        return []
+
+    return items
 
 
 def normalize_event(item: CalendarEvent) -> RunSchedule | None:
@@ -180,34 +217,3 @@ def normalize_events(items: list[CalendarEvent]) -> list[RunSchedule]:
             schedules.append(schedule)
 
     return schedules
-
-
-def sync_events_to_db(
-    db_path: Path,
-    items: list[CalendarEvent],
-) -> list[RunSchedule]:
-    schedules = normalize_events(items)
-
-    repository = RunScheduleRepository(db_path)
-    repository.upsert_run_schedules(schedules)
-
-    return schedules
-
-
-def sync_google_calendar_to_db(
-    settings: Settings,
-    *,
-    lookback_days: int = 1,
-    lookahead_days: int = 3,
-) -> list[RunSchedule]:
-    now = datetime.now(timezone.utc)
-    time_min = now - timedelta(days=lookback_days)
-    time_max = now + timedelta(days=lookahead_days)
-
-    response = fetch_calendar_response(
-        settings=settings,
-        time_min=time_min,
-        time_max=time_max,
-    )
-    items = extract_items(response)
-    return sync_events_to_db(settings.db_path, items)
