@@ -134,3 +134,70 @@ def test_cli_control_runner(
     assert "controller_settings" in called
     assert called["control"] is True
     assert captured.out.strip() == "started workload (pid=12345)"
+
+
+def test_cli_daemon_once(
+    monkeypatch: MonkeyPatch,
+    capsys: CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "calendar_workload_runner",
+            "daemon",
+            "--once",
+            "--sync-interval",
+            "900",
+            "--control-interval",
+            "60",
+        ],
+    )
+
+    called: dict[str, object] = {}
+
+    def fake_load_settings(config_path: Path | None = None) -> Settings:
+        called["load_settings"] = config_path
+
+        return Settings(
+            base_dir=Path("."),
+            db_path=Path("dummy.db"),
+            credentials_path=Path("credentials.json"),
+            token_path=Path("token.json"),
+            logs_dir=Path("logs"),
+            state_dir=Path("state"),
+            calendar_id="primary",
+            workload_command="echo test",
+            workload_pid_path=Path("state/workload.pid"),
+            workload_log_path=Path("logs/workload.log"),
+            control_log_path=Path("logs/control.log"),
+            sync_log_path=Path("logs/sync_calendar.log"),
+        )
+
+    class FakeDaemonRunner:
+
+        def __init__(
+            self,
+            settings: Settings,
+            *,
+            sync_interval: int = 900,
+            control_interval: int = 60,
+        ) -> None:
+            called["runner_settings"] = settings
+            called["sync_interval"] = sync_interval
+            called["control_interval"] = control_interval
+
+        def run_once(self) -> tuple[int, str]:
+            called["run_once"] = True
+            return 2, "idle"
+
+    monkeypatch.setattr(cli, "load_settings", fake_load_settings)
+    monkeypatch.setattr(cli, "DaemonRunner", FakeDaemonRunner)
+
+    cli.main()
+    captured = capsys.readouterr()
+
+    assert "runner_settings" in called
+    assert called["sync_interval"] == 900
+    assert called["control_interval"] == 60
+    assert called["run_once"] is True
+    assert captured.out.strip() == "synced 2 schedule(s)\nidle"
