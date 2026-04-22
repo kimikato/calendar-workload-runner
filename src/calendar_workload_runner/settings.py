@@ -47,7 +47,7 @@ class Settings:
             "token_path": str(self.token_path),
             "logs_dir": str(self.logs_dir),
             "state_dir": str(self.state_dir),
-            "calendar_log": str(self.calendar_id),
+            "calendar_id": str(self.calendar_id),
             "workload_command": str(self.workload_command),
             "workload_pid_path": str(self.workload_pid_path),
             "workload_log_path": str(self.workload_log_path),

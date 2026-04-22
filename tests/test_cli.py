@@ -229,6 +229,7 @@ def test_cli_generate(
 
     assert output_path.exists() is True
     text = output_path.read_text(encoding="utf-8")
+    assert '"calendar_id": "primary"' in text
     assert '"sync_interval_seconds": 900' in text
     assert '"control_interval_seconds": 60' in text
     assert captured.out.strip() == f"generated settings file: {output_path}"
