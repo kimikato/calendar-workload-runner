@@ -203,6 +203,8 @@ def test_calendar_sync_service_sync(
         workload_log_path=tmp_path / "logs" / "workload.log",
         control_log_path=tmp_path / "logs" / "control.log",
         sync_log_path=tmp_path / "logs" / "sync_calendar.log",
+        sync_interval_seconds=900,
+        control_interval_seconds=60,
     )
     repository = RunScheduleRepository(settings.db_path)
     service = CalendarSyncService(settings, repository=repository)

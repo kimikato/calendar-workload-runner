@@ -23,6 +23,8 @@ class Settings:
     workload_log_path: Path
     control_log_path: Path
     sync_log_path: Path
+    sync_interval_seconds: int
+    control_interval_seconds: int
 
     def ensure_runtime_paths(self) -> None:
         self.base_dir.mkdir(parents=True, exist_ok=True)
@@ -36,6 +38,49 @@ class Settings:
         self.workload_log_path.parent.mkdir(parents=True, exist_ok=True)
         self.control_log_path.parent.mkdir(parents=True, exist_ok=True)
         self.sync_log_path.parent.mkdir(parents=True, exist_ok=True)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "base_dir": str(self.base_dir),
+            "db_path": str(self.db_path),
+            "credentials_path": str(self.credentials_path),
+            "token_path": str(self.token_path),
+            "logs_dir": str(self.logs_dir),
+            "state_dir": str(self.state_dir),
+            "calendar_log": str(self.calendar_id),
+            "workload_command": str(self.workload_command),
+            "workload_pid_path": str(self.workload_pid_path),
+            "workload_log_path": str(self.workload_log_path),
+            "control_log_path": str(self.control_log_path),
+            "sync_log_path": str(self.sync_log_path),
+            "sync_interval_seconds": self.sync_interval_seconds,
+            "control_interval_seconds": self.control_interval_seconds,
+        }
+
+    @classmethod
+    def default(cls) -> Settings:
+        base_dir = Path.home() / ".calendar-workload-runner"
+        logs_dir = base_dir / "logs"
+        state_dir = base_dir / "state"
+
+        settings = cls(
+            base_dir=base_dir,
+            db_path=base_dir / "runner.db",
+            credentials_path=base_dir / "credentials.json",
+            token_path=base_dir / "token.json",
+            logs_dir=logs_dir,
+            state_dir=state_dir,
+            calendar_id="primary",
+            workload_command="sleep 3000",
+            workload_pid_path=state_dir / "workload.pid",
+            workload_log_path=logs_dir / "workload.log",
+            control_log_path=logs_dir / "control.log",
+            sync_log_path=logs_dir / "sync_calendar.log",
+            sync_interval_seconds=900,
+            control_interval_seconds=60,
+        )
+        settings.ensure_runtime_paths()
+        return settings
 
     @classmethod
     def load(cls, config_path: Path | None = None) -> Settings:
@@ -151,6 +196,18 @@ class Settings:
                     ),
                 )
             ),
+            sync_interval_seconds=cls._get_int(
+                data,
+                "sync_interval_seconds",
+                int(os.getenv("WORKLOAD_RUNNER_SYNC_INTERVAL_SECONDS", "900")),
+            ),
+            control_interval_seconds=cls._get_int(
+                data,
+                "control_interval_seconds",
+                int(
+                    os.getenv("WORKLOAD_RUNNER_CONTROL_INTERVAL_SECONDS", "60")
+                ),
+            ),
         )
 
         settings.ensure_runtime_paths()
@@ -171,4 +228,11 @@ class Settings:
         value = data.get(key, default)
         if not isinstance(value, str):
             raise ValueError(f"{key} must be a string")
+        return value
+
+    @staticmethod
+    def _get_int(data: dict[str, Any], key: str, default: int) -> int:
+        value = data.get(key, default)
+        if not isinstance(value, int):
+            raise ValueError(f"{key} must be an integer")
         return value

@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
 
 from calendar_workload_runner.config import load_settings
 from calendar_workload_runner.control_runner import WorkloadController
 from calendar_workload_runner.daemon_runner import DaemonRunner
+from calendar_workload_runner.settings import Settings
 from calendar_workload_runner.sync_calendar import CalendarSyncService
 
 
@@ -56,6 +58,23 @@ def build_parser() -> argparse.ArgumentParser:
         help="Run sync and control once, then exit",
     )
 
+    generate_parser = subparsers.add_parser(
+        "generate",
+        help="Generate a default settings JSON file",
+    )
+    generate_parser.add_argument(
+        "-o",
+        "--output",
+        type=Path,
+        default=Path("settings.json"),
+        help="Output path for generated settings JSON",
+    )
+    generate_parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Overwrite the output file if it already exists",
+    )
+
     return parser
 
 
@@ -92,6 +111,23 @@ def main() -> None:
             return
 
         runner.run_forever()
+        return
+
+    if args.command == "generate":
+        output_path: Path = args.output
+        if output_path.exists() and not args.force:
+            raise FileExistsError(
+                f"{output_path} already exists. Use --force to overwrite."
+            )
+
+        settings = Settings.default()
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text(
+            json.dumps(settings.to_dict(), indent=2, ensure_ascii=False)
+            + "\n",
+            encoding="utf-8",
+        )
+        print(f"generated settings file: {output_path}")
         return
 
     print("calendar-workload-runner")

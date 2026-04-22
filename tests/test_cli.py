@@ -49,6 +49,8 @@ def test_cli_sync_calendar(
             workload_log_path=Path("logs/workload.log"),
             control_log_path=Path("logs/control.log"),
             sync_log_path=Path("logs/sync_calendar.log"),
+            sync_interval_seconds=900,
+            control_interval_seconds=60,
         )
 
     class FakeCalendarSyncService:
@@ -114,6 +116,8 @@ def test_cli_control_runner(
             workload_log_path=Path("logs/workload.log"),
             control_log_path=Path("logs/control.log"),
             sync_log_path=Path("logs/sync_calendar.log"),
+            sync_interval_seconds=900,
+            control_interval_seconds=60,
         )
 
     class FakeWorkloadController:
@@ -171,6 +175,8 @@ def test_cli_daemon_once(
             workload_log_path=Path("logs/workload.log"),
             control_log_path=Path("logs/control.log"),
             sync_log_path=Path("logs/sync_calendar.log"),
+            sync_interval_seconds=900,
+            control_interval_seconds=60,
         )
 
     class FakeDaemonRunner:
@@ -201,3 +207,28 @@ def test_cli_daemon_once(
     assert called["control_interval"] == 60
     assert called["run_once"] is True
     assert captured.out.strip() == "synced 2 schedule(s)\nidle"
+
+
+def test_cli_generate(
+    tmp_path: Path, monkeypatch: MonkeyPatch, capsys: CaptureFixture[str]
+) -> None:
+    output_path = tmp_path / "settings.json"
+
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "calendar_workload_runner",
+            "generate",
+            "--output",
+            str(output_path),
+        ],
+    )
+
+    cli.main()
+    captured = capsys.readouterr()
+
+    assert output_path.exists() is True
+    text = output_path.read_text(encoding="utf-8")
+    assert '"sync_interval_seconds": 900' in text
+    assert '"control_interval_seconds": 60' in text
+    assert captured.out.strip() == f"generated settings file: {output_path}"
