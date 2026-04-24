@@ -31,6 +31,7 @@ htmlcov/
 *.swp
 *.swo
 .DS_Store
+.obsidian/
 
 # Local environment files
 .env
