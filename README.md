@@ -1,208 +1,265 @@
 # calendar-workload-runner
 
-A Google Calendar-based workload runner for WSL and other local environments.
+**English** | [日本語](README.ja.md)
 
-This project is designed to control heavy local workloads based on calendar-defined time windows.
-Typical examples include CPU-intensive or noisy workloads such as mining, batch AI jobs, BOINC clients, or long-running encoding tasks.
+![Tests](https://github.com/kimikato/calendar-workload-runner/actions/workflows/tests.yml/badge.svg?branch=main)
+[![Coverage](https://img.shields.io/codecov/c/github/kimikato/calendar-workload-runner/main?label=coverage&logo=codecov)](https://codecov.io/gh/kimikato/calendar-workload-runner)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-## Status
+A CLI tool that starts and stops a workload command based on events from Google Calendar.
 
-This project is currently in active development.
+Currently, it supports the following:
 
-Implemented so far:
+- Sync scheduled events from Google Calendar into SQLite
+- Decide whether a workload should be running at the current time
+- Start or stop the `workload` command accordingly
+- Run `sync` and `control` together through a `daemon` command
+- Generate a `settings.json` template
 
-- Project structure and development tooling
-- Python 3.12-based local development environment
-- Strict type checking with mypy
-- Linting with flake8
-- Tests with pytest
-- SQLite-based schedule storage
-- RunSchedule model and `run_schedules` table
-- Basic Google Calendar event normalization
-- Filtering of timed events vs all-day events
-- Filtering of cancelled events
-- Syncing normalized calendar events into SQLite
+## Intended Use Case
 
-Planned / in progress:
+A typical use case looks like this:
 
-- CLI subcommands for calendar sync
-- Workload start/stop control
-- PID-based process management
-- Windows Task Scheduler + WSL execution flow
-- End-to-end automation for calendar-driven workload control
-
-## Motivation
-
-Traditional schedulers such as cron or Windows Task Scheduler are great for fixed recurring jobs.
-
-However, some local workloads are better controlled by real-life schedules:
-
-- Run only while family members are away
-- Avoid noisy workloads during certain hours
-- Follow irregular availability defined in Google Calendar
-- Dynamically react to changed schedules without manually editing task definitions
-
-This project aims to fill that gap.
-
-## Suitable workloads
-
-This project is intended for heavy local workloads that should run only during calendar-defined time windows.
-
-Examples:
-
-- Cryptocurrency mining workloads such as XMRig
-- BOINC or similar distributed computing clients
-- Long-running video encoding jobs
-- Batch AI inference jobs
-- Other CPU-intensive local jobs that are noisy or intrusive
-
-## Not suitable workloads
-
-This project is not intended for workloads that are better handled by traditional schedulers or that require strict uninterrupted execution.
-
-Examples:
-
-- Regular backups that can be scheduled with cron or Task Scheduler
-- Real-time services or always-on daemons
-- Jobs that must not be interrupted once started
-- Mission-critical tasks requiring strict reliability guarantees
-- Tasks that need second-level responsiveness
+- Create scheduled events in Google Calendar
+- Run a workload only during those scheduled time windows
+- Stop the workload automatically outside those windows
 
 ## Requirements
 
 - Python 3.12+
-- Google Calendar API credentials
-- SQLite
-- A local environment such as:
-    - WSL2 on Windows
-    - Linux
-    - macOS (for development)
+- SQLite3
+- A Google account and access to Google Calendar API
 
-## Development setup
+## Installation
+
+For development:
 
 ```bash
-pyenv local 3.12.13
-python3.12 -m venv .venv
+python -m venv .venv
 source .venv/bin/activate
 make init
-make check
 ```
 
-## Development commands
+## Google Calendar API Setup
+
+Before using this tool, set up the following in Google Cloud:
+
+- Create a project
+- Enable Google Calendar API
+- Configure the OAuth consent screen
+- Create OAuth client credentials for a desktop application
+- Download `credentials.json`
+
+## Initial Setup
+
+### 1. Generate `settings.json`
 
 ```bash
-make init
-make lint
-make typecheck
-make test
-make check
-make coverage
-make coverage-html
-make format
-make clean
+calendar_workload_runner generate --output ./settings.json
 ```
 
-## Project layout
+If the file already exists, the command will fail. To overwrite it, use `--force`.
+
+```bash
+calendar_workload_runner generate --output ./settings.json --force
+```
+
+### 2. Edit `settings.json` as needed
+
+Example generated file:
+
+```json
+{
+    "base_dir": "/Users/yourname/.calendar-workload-runner",
+    "db_path": "/Users/yourname/.calendar-workload-runner/runner.db",
+    "credentials_path": "/Users/yourname/.calendar-workload-runner/credentials.json",
+    "token_path": "/Users/yourname/.calendar-workload-runner/token.json",
+    "logs_dir": "/Users/yourname/.calendar-workload-runner/logs",
+    "state_dir": "/Users/yourname/.calendar-workload-runner/state",
+    "calendar_id": "primary",
+    "workload_command": "sleep 3000",
+    "workload_pid_path": "/Users/yourname/.calendar-workload-runner/state/workload.pid",
+    "workload_log_path": "/Users/yourname/.calendar-workload-runner/logs/workload.log",
+    "control_log_path": "/Users/yourname/.calendar-workload-runner/logs/control.log",
+    "sync_log_path": "/Users/yourname/.calendar-workload-runner/logs/sync_calendar.log",
+    "sync_interval_seconds": 900,
+    "control_interval_seconds": 60
+}
+```
+
+### 3. Place `credentials.json`
+
+Put the OAuth credentials file downloaded from Google Cloud at the path specified by `credentials_path`.
+
+By default:
 
 ```text
-src/calendar_workload_runner/
-├── cli.py
-├── config.py
-├── db.py
-├── models.py
-└── sync_calendar.py
-
-tests/
-├── test_cli.py
-├── test_config.py
-├── test_db.py
-└── test_sync_calendar.py
+~/.calendar-workload-runner/credentials.json
 ```
 
-## Current data model
+## First Authentication
 
-### RunSchedule
+The first time you run `sync-calendar` or `daemon --once`, a browser window will open for Google authentication.
 
-RunSchedule is the normalized internal model used by the runner.
+After successful authentication, `token.json` will be created automatically.
 
-Fields:
+## Commands
 
-- event_id
-- title
-- start_at
-- end_at
-- updated_at
-- is_active
+### Generate a `settings.json` template
 
-### SQLite tables
+```bash
+calendar_workload_runner generate --output ./settings.json
+```
 
-Currently used tables:
+### Sync calendar events
 
-- run_schedules
-- sync_state
+```bash
+calendar_workload_runner --config ./settings.json sync-calendar
+```
 
-## Google Calendar event handling
+This fetches events from Google Calendar and stores them in SQLite.
 
-The current implementation normalizes Google Calendar event-like dictionaries into RunSchedule records.
+### Start or stop the workload based on the current time
 
-Current befavior:
+```bash
+calendar_workload_runner --config ./settings.json control-runner
+```
 
-- accepts timed events with start.dateTime and end.dateTime
-- ignores all-day events using start.date / end.date
-- ignores cancelled events
-- stores normalized schedules into SQLite
+Example outputs:
 
-## Configuration
+```text
+started workload (pid=12345)
+already running (pid=12345)
+stopped workload (pid=12345)
+idle
+```
 
-The project currently uses a Settings dataclass in config.py.
+### Run sync and control once
 
-Main settings include:
+```bash
+calendar_workload_runner --config ./settings.json daemon --once
+```
 
-- base directory
-- database path
-- Google credentials path
-- calendar id
-- workload command
-- workload PID path
-- workload log path
-- sync log path
+Example outputs:
 
-Environment variables currently supported include:
+```text
+synced 1 schedule(s)
+started workload (pid=12345)
+```
 
-- WORKLOAD_RUNNER_BASE_DIR
-- WORKLOAD_RUNNER_DB_PATH
-- GOOGLE_CREDENTIALS_PATH
-- GOOGLE_TOKEN_PATH
-- GOOGLE_CALENDAR_ID
-- WORKLOAD_RUNNER_COMMAND
-- WORKLOAD_RUNNER_PID_PATH
-- WORKLOAD_RUNNER_LOG_PATH
-- WORKLOAD_RUNNER_CONTROL_LOG_PATH
-- WORKLOAD_RUNNER_SYNC_LOG_PATH
+```text
+synced 1 schedule(s)
+already running (pid=12345)
+```
 
-## Notes on Google API typing
+```text
+synced 1 schedule(s)
+stopped workload (pid=12345)
+```
 
-The project uses strict typing where practical, but some Google client library calls are dynamically typed.
+```text
+synced 1 schedule(s)
+idle
+```
 
-In those areas, local casts and minimal ignores are used to keep the codebase maintainable while preserving strict checks for project code.
+### Run sync and control continuously
 
-## Roadmap
+```bash
+calendar_workload_runner --config ./settings.json daemon
+```
 
-Short-term goals:
+**By default, the daemon uses these settings from `settings.json`:**
 
-1. Add a CLI command for syncing Google Calendar events into SQLite
-2. Implement workload control based on the current time window
-3. Add PID-based workload start/stop logic
-4. Integrate with Windows Task Scheduler and WSL
-5. DOcument real-world setup examples
+- `sync_interval_seconds`
+- `control_interval_seconds`
 
-Possible future extensions:
+You can override them from the command line:
 
-- Multiple workload definitions
-- Labels or filters for selecting relevant calendar events
-- Supervisor mode for continuous background execution
-- Improved logging and state tracking
-- Support for additional calendar-driven automation flows
+```bash
+calendar_workload_runner --config ./settings.json daemon \
+  --sync-interval 900 \
+  --control-interval 60
+```
+
+## Main `settings.json` Fields
+
+### `calendar_id`
+
+The Google Calendar ID to use. In many cases, `primary` is sufficient.
+
+### `workload_command`
+
+The command to start when the current time is inside a scheduled event.
+
+Example:
+
+```json
+"workload_command": "sleep 3000"
+```
+
+### `sync_interval_seconds`
+
+How often the daemon should sync events from Google Calendar, in seconds.
+
+Example:
+
+```json
+"sync_interval_seconds": 900
+```
+
+### `control_interval_seconds`
+
+How often the daemon should check whether the workload should be running, in seconds.
+
+Example:
+
+```json
+"control_interval_seconds": 60
+```
+
+## Default File Layout
+
+By default, the following files are used:
+
+```text
+~/.calendar-workload-runner/
+├── credentials.json
+├── token.json
+├── runner.db
+├── logs/
+│   ├── workload.log
+│   ├── control.log
+│   └── sync_calendar.log
+└── state/
+    └── workload.pid
+```
+
+## Development Commands
+
+### Run lint, type checks, and tests
+
+```bash
+make check
+```
+
+### Run coverage
+
+```bash
+make coverage
+```
+
+## Current Status
+
+Implemented so far:
+
+- Settings management via `Settings`
+- SQLite-based schedule storage
+- Google Calendar `sync`
+- `workload` start/stop control
+- `daemon` command
+- `settings.json` template generation
+
+Error handling and failure-path behavior can still be improved in future iterations.
 
 ## License
 
