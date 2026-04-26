@@ -1,6 +1,6 @@
 [project]
 name = "calendar-workload-runner"
-version = "0.1.1"
+version = "0.1.2"
 description = "Google Calendar based workload runner for WSL"
 readme = { file = "README.md", content-type = "text/markdown" }
 requires-python = ">=3.12"
