@@ -27,14 +27,23 @@ def test_cli_sync_calendar(
     monkeypatch: MonkeyPatch,
     capsys: CaptureFixture[str],
 ) -> None:
+    config_path = Path("/tmp/settings.json")
     monkeypatch.setattr(
-        "sys.argv", ["calendar_workload_runner", "sync-calendar"]
+        "sys.argv",
+        [
+            "calendar_workload_runner",
+            "--config",
+            str(config_path),
+            "sync-calendar",
+        ],
     )
 
     called: dict[str, object] = {}
 
-    def fake_load_settings() -> Settings:
-        called["load_settings"] = True
+    def fake_load_settings(
+        passed_config_path: Path | None = None,
+    ) -> Settings:
+        called["load_settings"] = passed_config_path
 
         return Settings(
             base_dir=Path("."),
@@ -84,7 +93,7 @@ def test_cli_sync_calendar(
     cli.main()
     captured = capsys.readouterr()
 
-    assert called["load_settings"] is True
+    assert called["load_settings"] == config_path
     assert "service_settings" in called
     assert called["sync"] is True
     assert captured.out.strip() == "synced 2 schedule(s)"
@@ -94,14 +103,23 @@ def test_cli_control_runner(
     monkeypatch: MonkeyPatch,
     capsys: CaptureFixture[str],
 ) -> None:
+    config_path = Path("/tmp/settings.json")
     monkeypatch.setattr(
-        "sys.argv", ["calendar_workload_runner", "control-runner"]
+        "sys.argv",
+        [
+            "calendar_workload_runner",
+            "--config",
+            str(config_path),
+            "control-runner",
+        ],
     )
 
     called: dict[str, object] = {}
 
-    def fake_load_settings() -> Settings:
-        called["load_settings"] = True
+    def fake_load_settings(
+        passed_config_path: Path | None = None,
+    ) -> Settings:
+        called["load_settings"] = passed_config_path
 
         return Settings(
             base_dir=Path("."),
@@ -134,7 +152,7 @@ def test_cli_control_runner(
     cli.main()
     captured = capsys.readouterr()
 
-    assert called["load_settings"] is True
+    assert called["load_settings"] == config_path
     assert "controller_settings" in called
     assert called["control"] is True
     assert captured.out.strip() == "started workload (pid=12345)"
@@ -144,10 +162,13 @@ def test_cli_daemon_once(
     monkeypatch: MonkeyPatch,
     capsys: CaptureFixture[str],
 ) -> None:
+    config_path = Path("/tmp/settings.json")
     monkeypatch.setattr(
         "sys.argv",
         [
             "calendar_workload_runner",
+            "--config",
+            str(config_path),
             "daemon",
             "--once",
             "--sync-interval",
@@ -202,6 +223,7 @@ def test_cli_daemon_once(
     cli.main()
     captured = capsys.readouterr()
 
+    assert called["load_settings"] == config_path
     assert "runner_settings" in called
     assert called["sync_interval"] == 900
     assert called["control_interval"] == 60

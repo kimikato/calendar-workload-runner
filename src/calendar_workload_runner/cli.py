@@ -83,21 +83,21 @@ def main() -> None:
     args = parser.parse_args()
 
     if args.command == "sync-calendar":
-        settings = load_settings()
+        settings = load_settings(args.config)
         service = CalendarSyncService(settings)
         schedules = service.sync()
         print(f"synced {len(schedules)} schedule(s)")
         return
 
     if args.command == "control-runner":
-        settings = load_settings()
+        settings = load_settings(args.config)
         controller = WorkloadController(settings)
         message = controller.control()
         print(message)
         return
 
     if args.command == "daemon":
-        settings = load_settings()
+        settings = load_settings(args.config)
         runner = DaemonRunner(
             settings,
             sync_interval=args.sync_interval,
